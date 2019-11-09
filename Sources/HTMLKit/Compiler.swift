@@ -36,7 +36,7 @@ public struct TemplateCompiler {
         case .style(let type, let styles):
             compileString(type.rawValue)
             compileString(styles.map { $0.styleName }.joined(separator: " "))
-            
+
             for style in styles {
                 style.register?(self.stylesheet)
             }
@@ -148,12 +148,16 @@ public struct TemplateCompiler {
                     var modifierTemplate = modifiers.makeTemplateNode()
 
                     result += "<\(name)"
-                    if case .literal(let literalModifierString) = modifierTemplate {
+                    switch modifierTemplate {
+                    case .literal(let literalModifierString):
                         result += "\(literalModifierString)>"
-                    } else {
+                    case .none:
+                        result += ">"
+                    default:
                         flushOptimization()
                         _ = optimize(&modifierTemplate)
                         nodes.append(modifierTemplate)
+                        result = ">"
                     }
                     
                     let isOptimized = optimize(&content)
@@ -173,7 +177,11 @@ public struct TemplateCompiler {
                     nodes.append(resolved)
                 case .literal(let value):
                     result += value
-                case .contextValue, .computedList:
+                case .computedList(let path, var content):
+                    flushOptimization()
+                    _ = optimize(&content)
+                    nodes.append(.computedList(path, content))
+                case .contextValue:
 //                    assert(!didOptimize, "Optimized node cannot be a contextValue, these are not optimizable")
                     flushOptimization()
                     nodes.append(subnode)
@@ -196,15 +204,18 @@ public struct TemplateCompiler {
             return true
         case .tag(let name, var content, let modifiers):
 
-            var modifierTemplate = modifiers.makeTemplateNode()
+            let modifierTemplate = modifiers.makeTemplateNode()
 
             var start = "<\(name)"
-            if case .literal(let literalModifierString) = modifierTemplate {
+            switch modifierTemplate {
+            case .literal(let literalModifierString):
                 start += "\(literalModifierString)>"
-            } else {
-                _ = optimize(&modifierTemplate)
+            case .none:
+                start += ">"
+            default:
                 content = .list([
                     modifierTemplate,
+                    .literal(">"),
                     content
                 ])
             }
@@ -216,19 +227,7 @@ public struct TemplateCompiler {
                 node = .literal(start + value + end)
             case (true, .none):
                 node = .literal(start + end)
-            case (true, .list):
-                node = .list([
-                    .literal(start),
-                    content,
-                    .literal(end)
-                ])
-            case (true, .computedList(let path, let content)):
-                node = .list([
-                    .literal(start),
-                    .computedList(path, content),
-                    .literal(end)
-                ])
-            case (true, .contextValue(_, _)):
+            case (true, .list), (true, .computedList(_, _)), (true, .contextValue(_, _)):
                 node = .list([
                     .literal(start),
                     content,
@@ -252,9 +251,10 @@ public struct TemplateCompiler {
             return success
         case .literal:
             return true
-        case .computedList(_, var node):
-            _ = optimize(&node)
-            return true
+        case .computedList(let path, var node):
+            let shouldOptimize = optimize(&node)
+            node = .computedList(path, node)
+            return shouldOptimize
         case .contextValue:
             return false
         }

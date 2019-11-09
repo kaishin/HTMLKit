@@ -58,35 +58,8 @@ public struct CompiledTemplate {
                 output.writeBytes(key)
                 output.writeInteger(Constants.equal)
                 output.writeInteger(Constants.quote)
-                
-                guard
-                    let byte = template.readInteger(as: UInt8.self),
-                    let type = CompiledTemplateValue(rawValue: byte)
-                else {
-                    throw TemplateError.internalCompilerError
-                }
-                
-                switch type {
-                case .literal:
-                    let value = try template.parseSlice()
-                    output.writeBytes(value)
-                case .runtime:
-                    // TODO: THIS PART HAS SHIT PERFORMANCE
-                    let property = try template.parseString()
-                    let path = property.split(separator: ".")
-                    
-                    var value: Primitive? = context
-                    
-                    for component in path where !component.isEmpty {
-                        value = value[String(component)]
-                    }
-                    
-                    if let value = value?.string {
-                        output.writeString(value)
-                    } else {
-                        throw TemplateError.missingValue(property, needed: String.self)
-                    }
-                }
+
+                try compileNextNode(template: &template, into: &output, context: context)
                 
                 output.writeInteger(Constants.quote)
             }

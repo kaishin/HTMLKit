@@ -49,16 +49,5 @@ final class HTMLKitTests: XCTestCase {
                 )
             }
         }
-
-//        output.clear()
-//        measure {
-//            for _ in 0..<10_000 {
-//                try! CompiledTemplate.render(
-//                    template: template,
-//                    output: &output,
-//                    properties: document
-//                )
-//            }
-//        }
     }
 }

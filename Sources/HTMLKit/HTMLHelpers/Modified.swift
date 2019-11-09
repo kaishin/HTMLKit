@@ -30,29 +30,23 @@ extension Array where Element == _Modifier {
     func makeTemplateNode() -> TemplateNode {
         var node: TemplateNode = .none
         for element in self {
-            if case .attribute(let name, let value) = element {
+            switch element {
+            case .attribute(name: let name, value: let value):
                 switch node {
                 case .none:
                     switch value {
                     case .literal(let literal): node = .literal(" \(name)=\"\(literal)\"")
-                    case .runtime(let path):    node = .contextValue(path, broken: false)
+                    case .runtime(let path):    node = .list([
+                        .literal(" \(name)=\""),
+                        .contextValue(path, broken: false),
+                        .literal("\"")
+                    ])
                     }
                 case .literal(let currentNode):
                     switch value {
                     case .literal(let literal): node = .literal(currentNode + " \(name)=\"\(literal)\"")
                     case .runtime(let path):    node = .list([
                         .literal(currentNode),
-                        .contextValue(path, broken: false)
-                    ])
-                    }
-                case .contextValue(_):
-                    switch value {
-                    case .literal(let literal): node = .list([
-                        node,
-                        .literal(literal)
-                    ])
-                    case .runtime(let path):    node = .list([
-                        node,
                         .contextValue(path, broken: false)
                     ])
                     }
@@ -69,6 +63,17 @@ extension Array where Element == _Modifier {
                             .contextValue(path, broken: false)
                         ])
                     }
+                default: fatalError()
+                }
+            case .style(type: let type, value: let value):
+                switch node {
+                case .none:                     node = .literal(" \(type.rawValue)=\"\(value.reduce("") { $0 + $1.styleName })\"")
+                case .literal(let currentNode): node = .literal(currentNode + " \(type.rawValue)=\"\(value.reduce("") { $0 + $1.styleName })\"")
+                case .list(let nodes):
+                    node = .list(
+                        nodes + [
+                        .literal(" \(type.rawValue)=\"\(value.reduce("") { $0 + $1.styleName })\"")
+                    ])
                 default: fatalError()
                 }
             }
